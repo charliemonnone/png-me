@@ -4,9 +4,9 @@ mod chunk_type;
 mod commands;
 mod png;
 
-pub type Error = Box<dyn std::error::Error>;
-pub type Result<T> = std::result::Result<T, Error>;
+pub type MyError = Box<dyn std::error::Error>;
+pub type MyResult<T> = std::result::Result<T, MyError>;
 
-fn main() -> Result<()> {
+fn main() -> MyResult<()> {
     todo!()
 }

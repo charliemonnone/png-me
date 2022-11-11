@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
-use std::{mem, str, fmt::Display, str::FromStr};
-
+use std::{fmt::Display, mem, str, str::FromStr};
 const TYPE_LEN: usize = mem::size_of::<u32>();
+const U8_FIRST_BIT_MASK: u8 = 0x1;
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Default)]
 pub struct ChunkType {
     chunk_type: u32,
 }
@@ -13,18 +13,7 @@ impl TryFrom<[u8; 4]> for ChunkType {
     type Error = &'static str;
 
     fn try_from(value: [u8; 4]) -> Result<Self, Self::Error> {
-        if value.len() != TYPE_LEN {
-            return Err("incorrect number of bytes in from_str parameter");
-        }
-
-        let mut result: u32 = 0;
-
-        for (index, byte) in value.iter().enumerate() {
-            let byte = byte.clone() as u32;
-            result |= byte << (index * 8);
-        }
-
-		Ok(ChunkType::new(result))
+        Ok(ChunkType::new(u32::from_ne_bytes(value)))
     }
 }
 
@@ -36,35 +25,27 @@ impl FromStr for ChunkType {
         }
 
         let mut result: u32 = 0;
-
         for (index, byte) in s.as_bytes().iter().enumerate() {
-			if !byte.is_ascii_alphabetic() {
-				return Err("non-alphabetic character");
-			}
+            if !byte.is_ascii_alphabetic() {
+                return Err("non-alphabetic character");
+            }
 
-			let byte = byte.clone() as u32;
+            let byte = *byte as u32;
             result |= byte << (index * 8);
         }
 
-		Ok(ChunkType::new(result))
+        Ok(ChunkType::new(result))
     }
 }
 
 impl Display for ChunkType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let bytes = self.bytes();
-        
-		// write!(f, "{}", str::from_utf8(&self.bytes()).unwrap())
-		write!(
-            f,
-            "{}{}{}{}",
-            bytes[0] as char, bytes[1] as char, bytes[2] as char, bytes[3] as char
-        )
+        write!(f, "{}", str::from_utf8(&self.bytes()).unwrap())
     }
 }
 
 impl ChunkType {
-    fn new(value: u32) -> ChunkType {
+    pub fn new(value: u32) -> ChunkType {
         ChunkType { chunk_type: value }
     }
 
@@ -72,44 +53,33 @@ impl ChunkType {
         ChunkType { chunk_type: 0 }
     }
 
-    fn bytes(&self) -> [u8; 4] {
-        self.chunk_type.to_le_bytes()
+    pub fn bytes(&self) -> [u8; 4] {
+        self.chunk_type.to_ne_bytes()
     }
 
     fn is_valid(&self) -> bool {
-
-		self.is_reserved_bit_valid() // must be zero to be valid per the current png standard 
-	}
+        self.is_reserved_bit_valid() // must be zero to be valid per the current png standard
+    }
     // "A decoder encountering an unknown chunk in which the ancillary bit
     // is 1 can safely ignore the chunk and proceed to display the image. "
     // Probably good for hiding messages
     fn is_critical(&self) -> bool {
-        (self.bytes()[0] >> 5) & 0x0001 == 0 // fifth bit of first byte encodes critical/ancillary
+        (self.bytes()[0] >> 5) & U8_FIRST_BIT_MASK == 0 // fifth bit of first byte encodes critical/ancillary
     }
 
     fn is_public(&self) -> bool {
-        (self.bytes()[1] >> 5) & 0x0001 == 0 // fifth bit of second byte encodes public/private
+        (self.bytes()[1] >> 5) & U8_FIRST_BIT_MASK == 0 // fifth bit of second byte encodes public/private
     }
 
     fn is_reserved_bit_valid(&self) -> bool {
-        (self.bytes()[2] >> 5) & 0x0001 == 0 // fifth bit of third  byte reserved for future use
+        (self.bytes()[2] >> 5) & U8_FIRST_BIT_MASK == 0 // fifth bit of third  byte reserved for future use
     }
 
     fn is_safe_to_copy(&self) -> bool {
-        (self.bytes()[3] >> 5) & 0x0001 == 1 // fifth bit of fourth  byte reserved for safe/unsafe to copy for editors
+        (self.bytes()[3] >> 5) & U8_FIRST_BIT_MASK == 1 // fifth bit of fourth  byte reserved for safe/unsafe to copy for editors
     }
 }
 
-// pub struct ChunkType {
-// 	length: u32,
-// 	chunk_type: [u8; 4],
-// 	chunk_data: Vec<u8>,
-// 	crc: u32
-// }
-
-/*
-    Tests
-*/
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,30 +150,30 @@ mod tests {
 
     #[test]
     pub fn test_valid_chunk_is_valid() {
-		let chunk = ChunkType::from_str("RuSt").unwrap();
-		assert!(chunk.is_valid());
+        let chunk = ChunkType::from_str("RuSt").unwrap();
+        assert!(chunk.is_valid());
     }
-    
+
     #[test]
     pub fn test_invalid_chunk_is_valid() {
-		let chunk = ChunkType::from_str("Rust").unwrap();
-		assert!(!chunk.is_valid());
-		
-		let chunk = ChunkType::from_str("Ru1t");
-		assert!(chunk.is_err());
+        let chunk = ChunkType::from_str("Rust").unwrap();
+        assert!(!chunk.is_valid());
+
+        let chunk = ChunkType::from_str("Ru1t");
+        assert!(chunk.is_err());
     }
-    
+
     #[test]
     pub fn test_chunk_type_string() {
-		let chunk = ChunkType::from_str("RuSt").unwrap();
-		assert_eq!(&chunk.to_string(), "RuSt");
+        let chunk = ChunkType::from_str("RuSt").unwrap();
+        assert_eq!(&chunk.to_string(), "RuSt");
     }
-    
+
     #[test]
     pub fn test_chunk_type_trait_impls() {
-		let chunk_type_1: ChunkType = TryFrom::try_from([82, 117, 83, 116]).unwrap();
-		let chunk_type_2: ChunkType = FromStr::from_str("RuSt").unwrap();
-		let _chunk_string = format!("{}", chunk_type_1);
-		let _are_chunks_equal = chunk_type_1 == chunk_type_2;
+        let chunk_type_1: ChunkType = TryFrom::try_from([82, 117, 83, 116]).unwrap();
+        let chunk_type_2: ChunkType = FromStr::from_str("RuSt").unwrap();
+        let _chunk_string = format!("{}", chunk_type_1);
+        let _are_chunks_equal = chunk_type_1 == chunk_type_2;
     }
 }
