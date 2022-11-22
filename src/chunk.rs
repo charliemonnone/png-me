@@ -4,7 +4,6 @@ use crate::chunk_type::ChunkType;
 use crc::{Crc, CRC_32_ISO_HDLC};
 use std::{
     fmt::{Display, Formatter},
-    io::Read,
     mem::size_of,
     str, u32,
 };
@@ -18,6 +17,7 @@ pub struct Chunk {
     chunk_data: Vec<u8>,
     crc: u32,
 }
+
 
 impl TryFrom<&[u8]> for Chunk {
     type Error = &'static str;
@@ -51,15 +51,16 @@ impl TryFrom<&[u8]> for Chunk {
         let crc = u32::from_be_bytes(u32_dst);
 
         let chunk_type = ChunkType::new(chunk_type);
+        let chunk = Chunk::new(chunk_type, chunk_data);
 
-        let chunk = Chunk {
-            length,
-            chunk_type,
-            chunk_data,
-            crc,
-        };
+        // check if length and crc(which includes chunk_type and chunk_data) are valid
+        let is_valid_chunk = length == chunk.length() && crc == chunk.crc();
 
-        Ok(chunk)
+        match is_valid_chunk {
+            true => Ok(chunk),
+            false => Err("Given invalid byte array")
+        }
+
     }
 }
 
@@ -109,8 +110,7 @@ impl Chunk {
             Err(e) => Err(Box::new(e)),
         }
     }
-    // NOTE: this doesnt seem to be tested by provided unit tests, keep an eye on this function
-    // might not be working cocrrectly
+
     fn as_bytes(&self) -> Vec<u8> { 
         self.length()
             .to_be_bytes()
@@ -121,6 +121,8 @@ impl Chunk {
             .copied()
             .collect()
     }
+
+
 }
 
 #[cfg(test)]
@@ -251,5 +253,18 @@ mod tests {
         let chunk: Chunk = TryFrom::try_from(chunk_data.as_ref()).unwrap();
 
         let _chunk_string = format!("{}", chunk);
+    }
+
+    #[test]
+    pub fn test_chunk_as_bytes() {
+        let chunk_type = ChunkType::from_str("RuSt").unwrap();
+        let data = "This is where your secret message will be!"
+            .as_bytes()
+            .to_vec();
+        let chunk = Chunk::new(chunk_type, data);
+        let bytes = chunk.as_bytes();
+        let chunk_from_bytes = Chunk::try_from(bytes.as_ref()).unwrap();
+        assert!(chunk.length() == chunk_from_bytes.length());
+        assert!(chunk.crc() == chunk_from_bytes.crc());
     }
 }
