@@ -1,10 +1,8 @@
-#![allow(dead_code)]
 
 use std::{fmt::Display, mem, str, str::FromStr};
 const TYPE_LEN: usize = mem::size_of::<u32>();
-const U8_FIRST_BIT_MASK: u8 = 0x1;
 
-#[derive(PartialEq, Eq, Debug, Default)]
+#[derive(PartialEq, Eq, Debug, Default, Clone)]
 pub struct ChunkType {
     chunk_type: u32,
 }
@@ -45,38 +43,36 @@ impl Display for ChunkType {
 }
 
 impl ChunkType {
+    const U8_FIRST_BIT_MASK: u8 = 0x1;
+
     pub fn new(value: u32) -> ChunkType {
         ChunkType { chunk_type: value }
-    }
-
-    fn default() -> ChunkType {
-        ChunkType { chunk_type: 0 }
     }
 
     pub fn bytes(&self) -> [u8; 4] {
         self.chunk_type.to_ne_bytes()
     }
 
-    fn is_valid(&self) -> bool {
+    pub fn is_valid(&self) -> bool {
         self.is_reserved_bit_valid() // must be zero to be valid per the current png standard
     }
     // "A decoder encountering an unknown chunk in which the ancillary bit
     // is 1 can safely ignore the chunk and proceed to display the image. "
     // Probably good for hiding messages
     fn is_critical(&self) -> bool {
-        (self.bytes()[0] >> 5) & U8_FIRST_BIT_MASK == 0 // fifth bit of first byte encodes critical/ancillary
+        (self.bytes()[0] >> 5) & Self::U8_FIRST_BIT_MASK == 0 // fifth bit of first byte encodes critical/ancillary
     }
 
     fn is_public(&self) -> bool {
-        (self.bytes()[1] >> 5) & U8_FIRST_BIT_MASK == 0 // fifth bit of second byte encodes public/private
+        (self.bytes()[1] >> 5) & Self::U8_FIRST_BIT_MASK == 0 // fifth bit of second byte encodes public/private
     }
 
     fn is_reserved_bit_valid(&self) -> bool {
-        (self.bytes()[2] >> 5) & U8_FIRST_BIT_MASK == 0 // fifth bit of third  byte reserved for future use
+        (self.bytes()[2] >> 5) & Self::U8_FIRST_BIT_MASK == 0 // fifth bit of third  byte reserved for future use
     }
 
     fn is_safe_to_copy(&self) -> bool {
-        (self.bytes()[3] >> 5) & U8_FIRST_BIT_MASK == 1 // fifth bit of fourth  byte reserved for safe/unsafe to copy for editors
+        (self.bytes()[3] >> 5) & Self::U8_FIRST_BIT_MASK == 1 // fifth bit of fourth  byte reserved for safe/unsafe to copy for editors
     }
 }
 

@@ -10,14 +10,13 @@ use std::{
 
 const U_32_LEN: usize = size_of::<u32>();
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct Chunk {
     length: u32,
     chunk_type: ChunkType,
     chunk_data: Vec<u8>,
     crc: u32,
 }
-
 
 impl TryFrom<&[u8]> for Chunk {
     type Error = &'static str;
@@ -27,7 +26,7 @@ impl TryFrom<&[u8]> for Chunk {
         let mut start_index = 0;
         let mut end_index = U_32_LEN;
         // NOTE: Using non-inclusive ranges
-        // TODO: this has to error somewhere
+
         // length field
         u32_dst.clone_from_slice(&value[start_index..end_index]);
         let length = u32::from_be_bytes(u32_dst);
@@ -51,6 +50,7 @@ impl TryFrom<&[u8]> for Chunk {
         let crc = u32::from_be_bytes(u32_dst);
 
         let chunk_type = ChunkType::new(chunk_type);
+
         let chunk = Chunk::new(chunk_type, chunk_data);
 
         // check if length and crc(which includes chunk_type and chunk_data) are valid
@@ -58,27 +58,25 @@ impl TryFrom<&[u8]> for Chunk {
 
         match is_valid_chunk {
             true => Ok(chunk),
-            false => Err("Given invalid byte array")
+            false => Err("Given invalid byte array"),
         }
-
     }
 }
 
 impl Display for Chunk {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}{}{}{}",
-            self.length(),
-            self.chunk_type(),
-            str::from_utf8(self.data()).unwrap(),
-            self.crc()
-        )
+        writeln!(f, "Chunk {{",)?;
+        writeln!(f, "  Length: {}", self.length())?;
+        writeln!(f, "  Type: {}", self.chunk_type())?;
+        writeln!(f, "  Data: {} bytes", self.data().len())?;
+        writeln!(f, "  Crc: {}", self.crc())?;
+        writeln!(f, "}}",)?;
+        Ok(())
     }
 }
 
 impl Chunk {
-    fn new(chunk_type: ChunkType, data: Vec<u8>) -> Chunk {
+    pub fn new(chunk_type: ChunkType, data: Vec<u8>) -> Chunk {
         let crc: Crc<u32> = Crc::<u32>::new(&CRC_32_ISO_HDLC); // spec mentions using iso-3309 crc method
         let type_bytes = chunk_type.bytes();
         let data_bytes = data.as_slice();
@@ -92,7 +90,12 @@ impl Chunk {
             crc: checksum,
         }
     }
-    fn length(&self) -> u32 {
+    /// Returns the usize of an entire chunk, including its length, crc, chunktype fields, and the size allocated to the data field
+    pub fn total_size(&self) -> usize {
+        (self.length() as usize) + (2 * U_32_LEN) + (size_of::<ChunkType>())
+    }
+    /// Returns the length allocated to the data field
+    pub fn length(&self) -> u32 {
         self.length
     }
     fn chunk_type(&self) -> &ChunkType {
@@ -111,7 +114,7 @@ impl Chunk {
         }
     }
 
-    fn as_bytes(&self) -> Vec<u8> { 
+    pub fn as_bytes(&self) -> Vec<u8> {
         self.length()
             .to_be_bytes()
             .iter()
@@ -121,8 +124,6 @@ impl Chunk {
             .copied()
             .collect()
     }
-
-
 }
 
 #[cfg(test)]
