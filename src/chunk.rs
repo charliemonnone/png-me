@@ -98,16 +98,16 @@ impl Chunk {
     pub fn length(&self) -> u32 {
         self.length
     }
-    fn chunk_type(&self) -> &ChunkType {
+    pub fn chunk_type(&self) -> &ChunkType {
         &self.chunk_type
     }
-    fn data(&self) -> &[u8] {
+    pub fn data(&self) -> &[u8] {
         &self.chunk_data
     }
-    fn crc(&self) -> u32 {
+    pub fn crc(&self) -> u32 {
         self.crc
     }
-    fn data_as_string(&self) -> crate::MyResult<String> {
+    pub fn data_as_string(&self) -> crate::MyResult<String> {
         match str::from_utf8(&self.chunk_data) {
             Ok(data_string) => Ok(String::from(data_string)),
             Err(e) => Err(Box::new(e)),

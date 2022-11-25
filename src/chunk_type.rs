@@ -1,4 +1,3 @@
-
 use std::{fmt::Display, mem, str, str::FromStr};
 const TYPE_LEN: usize = mem::size_of::<u32>();
 
